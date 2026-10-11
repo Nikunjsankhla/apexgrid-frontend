@@ -487,7 +487,7 @@
 
       if (activeTournamentId === '1') {
         try {
-          await fetch(`/api/brackets/matches/${matchId}/score`, {
+          await fetch(`https://apexgrid-backend-ejej.onrender.com/api/brackets/matches/${matchId}/score`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ scoreTeamA: scoreA, scoreTeamB: scoreB })
@@ -529,7 +529,7 @@
     async function refreshData() {
       if (activeTournamentId === '1') {
         try {
-          const res = await fetch(`/api/brackets/tournaments/1/matches`);
+          const res = await fetch(`https://apexgrid-backend-ejej.onrender.com/api/brackets/tournaments/1/matches`);
           if (res.ok) {
             const liveMatches = await res.json();
             if (liveMatches && liveMatches.length) {
