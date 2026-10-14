@@ -58,23 +58,39 @@ async function doFetch(base, path, options) {
   return data;
 }
 
-async function request(path, options) {
-  try {
-    return await doFetch(DIRECT_API_BASE, path, options);
-  } catch (error) {
-    // Only fall back on transport-level failures (DNS, network, CORS block).
-    // Real HTTP error responses (4xx/5xx) must be surfaced to the caller.
-    const isTransportFailure =
-      error instanceof TypeError ||
-      error?.name === 'TypeError' ||
-      error?.message === 'Failed to fetch' ||
-      error?.message === 'NetworkError when attempting to fetch resource.';
+// Remember when the direct (cross-origin) origin is unusable so subsequent
+// calls go straight to the same-origin proxy instead of paying the failed
+// round-trip every time. Reset implicitly on a successful direct call.
+let preferProxy = false;
 
-    if (isTransportFailure && PROXY_API_BASE !== DIRECT_API_BASE) {
-      return doFetch(PROXY_API_BASE, path, options);
+function isTransportFailure(error) {
+  return (
+    error instanceof TypeError ||
+    error?.name === 'TypeError' ||
+    error?.message === 'Failed to fetch' ||
+    error?.message === 'NetworkError when attempting to fetch resource.'
+  );
+}
+
+async function request(path, options) {
+  const bases = [preferProxy ? PROXY_API_BASE : DIRECT_API_BASE, preferProxy ? DIRECT_API_BASE : PROXY_API_BASE];
+  // De-duplicate when both bases resolve to the same origin.
+  const ordered = bases.filter((base, index) => bases.indexOf(base) === index);
+
+  let lastError;
+  for (const base of ordered) {
+    try {
+      const result = await doFetch(base, path, options);
+      preferProxy = base === PROXY_API_BASE && PROXY_API_BASE !== DIRECT_API_BASE;
+      return result;
+    } catch (error) {
+      lastError = error;
+      // Only retry on transport-level failures (DNS, network, CORS block).
+      // Real HTTP error responses (4xx/5xx) must be surfaced to the caller.
+      if (!isTransportFailure(error)) throw error;
     }
-    throw error;
   }
+  throw lastError;
 }
 
 /** GET /api/tournaments — every tournament registered in the engine. */
